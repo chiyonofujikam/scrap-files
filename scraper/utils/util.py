@@ -4,42 +4,20 @@ Author: Mustapha ELKAMILI
 """
 import json
 import os
-import random
 
 import lxml
 import requests
 from bs4 import BeautifulSoup
 from bs4.element import ResultSet, Tag
 
-from .const import PARENT_FOLDER, URL_START_POINT
-from .scrape import scrap_page
+from .const import FILE_URLS, FOLDER_DICT, PARENT_FOLDER, URL_START_POINT
+from .scrape import clean_folder_name, create_folder, random_name, scrap_page
 
-FOLDER_NAMES = set()
-FOLDER_DICT = {}
 
 def dumps_in_json():
     """ saves urls in json """
     with open(r"./urls.json", 'w', encoding='utf-8') as f_urls:
         json.dump(FOLDER_DICT, f_urls)
-
-def random_name() -> str:
-    """ makes a random name """
-    res = f'Unfound span {random.randint(0, 1_000_000)}'
-    while res in FOLDER_NAMES:
-        res = f'Unfound_{random.randint(0, 1_000_000)}'
-        continue
-
-    FOLDER_NAMES.update({res})
-    return res
-
-def create_folder(name: str) -> None:
-    """ checks and creates a folder """
-    if not os.path.exists(name):
-        os.makedirs(name)
-
-def clean_folder_name(name: str) -> str:
-    """ removes undesirect caracteres frome the name """
-    return name.strip().replace(' ', '_').replace('\n', '').replace('?', '')
 
 def get_span_text(div_ele: Tag) -> str:
     """ retrieve the text of the span inside of the 'div' Tag """
@@ -54,22 +32,29 @@ def get_span_text(div_ele: Tag) -> str:
 
     return random_name()
 
-def get_li_ul(li_items: ResultSet = None, folder: str= ''):
+def get_li_ul(li_items: ResultSet = None, folder: str= '', start: int = 0):
     """     
         from a 'ul' tag, extract all 'li' and check if the 'li' tag having a href
         or recursive calling the function on the new 'ul' tag
     """
     for element in li_items if li_items is not None else ():
+        # record = {}
+
         # check
         ul_ele = element.find('ul')
         if ul_ele is not None:
             # span
             span_div = element.find('div')
             folder_name = get_span_text(span_div)
+
+            if start == 1 and folder_name not in {'LIBRARY'}:
+                continue
+
             sub_f = os.path.join(folder, folder_name)
 
             create_folder(sub_f)
             get_li_ul(ul_ele.find_all('li', recursive=False), sub_f)
+            # report[folder] = record
             continue
 
         # 'a' Tag
@@ -77,13 +62,9 @@ def get_li_ul(li_items: ResultSet = None, folder: str= ''):
         sub_f = os.path.join(folder, clean_folder_name(element.find('a').text))
         create_folder(sub_f)
 
-        if sub_f not in FOLDER_DICT:
-            FOLDER_DICT[sub_f] = (href, )
-        else:
-            FOLDER_DICT[sub_f] += (href, )
-
         # calling a href_scraper
         scrap_page(href, sub_f)
+
 
 def start():
     """ starting point """
@@ -92,7 +73,12 @@ def start():
     create_folder(res_path)
 
     print(f"Start scraping {URL_START_POINT} site ... ")
-    response = requests.get(URL_START_POINT)
+
+    try:
+        response = requests.get(URL_START_POINT, headers={"User-Agent":"Mozilla/5.0"})
+    except requests.ConnectionError as err:
+        print(err)
+        return
 
     if response.status_code != 200:
         print(f"Error while requesting {URL_START_POINT}")
@@ -121,7 +107,8 @@ def start():
         print("No 2nd 'div' in source page ...")
         return
 
-    get_li_ul(nav_bar.find('ul').find_all('li', recursive=False), res_path)
+    get_li_ul(nav_bar.find('ul').find_all('li', recursive=False), res_path, 1)
 
     # back up
-    dumps_in_json()
+    with open(r"./urls.txt", 'w', encoding='utf-8') as f:
+        f.write('\n'.join(FILE_URLS))

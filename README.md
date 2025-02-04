@@ -2,7 +2,7 @@
 
 ## Setting Up the Virtual Environment and Running the Application
 
-1- Ensure you're in the `./tz-project` directory, then run the following commands:
+1- Ensure you're in the `./scrap-files` directory, then run the following commands:
 
 ```bash
 py -m pip cache purge
